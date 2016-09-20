@@ -123,15 +123,19 @@ class KerasVectorizer(VectorizerMixin):
     def fit_transform(self, raw_documents):
         self.fit(raw_documents)
         return self.transform(raw_documents)        
+
+
 class CNNTextClassifier(ClassifierMixin):
     
-    def __init__(self, max_features=10000, max_len=500, batch_size=64,
-                 stopping_patience=10, dropout=0.2, activation='relu',
+    def __init__(self, max_features=10000, max_len=500, batch_size=32,
+                 stopping_patience=10, dropout=0.5, activation='relu',
                  num_filters=100, filter_size=None, num_epochs=40,
                  num_hidden_layers=0, dim_hidden_layers=200,
                  stopping_target='loss', stopping_less_is_good=True,
                  embedding_dim=200, embedding_weights=None, optimizer='adam',
-                 sampling_ratio=None, class_weight=None, validataion_split=0):
+                 undersample_ratio=None, oversample_ratio=None, class_weight=None,
+                 validataion_split=0,
+                 l2=3):
         self.max_features = max_features
         self.max_len = max_len
         self.batch_size = batch_size
@@ -149,7 +153,8 @@ class CNNTextClassifier(ClassifierMixin):
         self.embedding_weights = self.get_embedding_weights(embedding_weights)
         self.optimizer = optimizer
         self.model = self.generate_model()
-        self.sampling_ratio = sampling_ratio # for class imbalance with few positive examples
+        self.undersample_ratio = undersample_ratio # for class imbalance with few positive examples
+        self.oversample_ratio = oversample_ratio
         self.class_weight = class_weight
         self.validation_split = validataion_split
 
@@ -159,25 +164,29 @@ class CNNTextClassifier(ClassifierMixin):
         X_train = self.low_pass_filter(X_train)
         if self.validation_split:
             X_train, X_val, y_train, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
-        if self.sampling_ratio:
-            X_train, y_train = self.subsample(X_train, y_train, self.sampling_ratio)
-            print("Sampled with ratio of {}, reduced to {} samples.".format(self.sampling_ratio, len(y_train)))
+            validation_data = ({"input":X_val}, {"output":y_val})
+        else:
+            validation_data = None
+        if self.undersample_ratio:
+            X_train, y_train = self.undersample(X_train, y_train, self.undersample_ratio)
+            print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))
+        elif self.oversample_ratio:
+            X_train, y_train = self.oversample(X_train, y_train, self.oversample_ratio)
+            print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))
         self.model.fit({"input":X_train}, {"output":y_train}, batch_size=self.batch_size, nb_epoch=self.num_epochs,
                        verbose=1, class_weight=self.class_weight,
-                       validation_data=({"input":X_val}, {"output":y_val}))
+                       validation_data=validation_data)
         
-    def fit_resample(self, X_train, y_train):
-        X_train = self.low_pass_filter(X_train)
-        X_t, X_val, y_t, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
-        for epoch in range(self.num_epochs):
-            X_t_s, y_t_s = self.subsample(X_t, y_t, self.sampling_ratio)
-#             import pdb; pdb.set_trace()
-            self.model.fit({"input":X_t_s}, {"output":y_t_s}, batch_size=self.batch_size, nb_epoch=1,
-                           verbose=1, class_weight=self.class_weight,
-                           validation_data=({"input":X_val}, {"output":y_val}))
+#     def fit_resample(self, X_train, y_train):
+#         X_train = self.low_pass_filter(X_train)
+#         X_t, X_val, y_t, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
+#         for epoch in range(self.num_epochs):
+#             X_t_s, y_t_s = self.subsample(X_t, y_t, self.sampling_ratio)
+#             self.model.fit({"input":X_t_s}, {"output":y_t_s}, batch_size=self.batch_size, nb_epoch=1,
+#                            verbose=1, class_weight=self.class_weight,
+#                            validation_data=({"input":X_val}, {"output":y_val}))
             
     def predict(self, X_test):
-
         X_test = self.low_pass_filter(X_test)
         return self.model.predict({"input":X_test})
     
@@ -194,13 +203,28 @@ class CNNTextClassifier(ClassifierMixin):
         else:
             return [ebm[:self.max_features+3]]
         
-    def subsample(self, X_train, y_train, ratio):
+    def undersample(self, X_train, y_train, ratio):
+        """
+        sample a proportion of negative samples for class imbalanced problems
+        """
         y_bool = y_train.astype('bool')
         pos_indices = np.where(y_bool==True)[0]
         neg_indices = np.where(y_bool==False)[0]
         sampled_indices = (np.append(pos_indices, np.random.choice(neg_indices, int(len(pos_indices)*ratio), replace=False)))
         print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), len(pos_indices), int(len(pos_indices)*ratio)))
         return X_train[sampled_indices], y_train[sampled_indices]
+    
+    def oversample(self, X_train, y_train, ratio):
+        """
+        oversample positive samples for class imbalanced problems
+        """
+        y_bool = y_train.astype('bool')
+        pos_indices = np.where(y_bool==True)[0]
+        neg_indices = np.where(y_bool==False)[0]
+        sampled_indices = (np.append(neg_indices, np.random.choice(pos_indices, int(len(neg_indices)*ratio), replace=True)))
+        print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), len(pos_indices), int(len(pos_indices)*ratio)))
+        return X_train[sampled_indices], y_train[sampled_indices]
+
 
     def get_val_set(self, X, y):
         num_rows = X.shape[0]
@@ -236,9 +260,13 @@ class CNNTextClassifier(ClassifierMixin):
         # add hidden layers if wanted
         last_dims = len(self.filter_size)*self.num_filters
         last_layer = k_merge
+        
+        if self.num_hidden_layers == 0:
+            # put dropout after merge if no hidden layers
+            last_layer = Dropout(self.dropout)(last_layer)
 
         for n in range(self.num_hidden_layers):
-            k_dn = Dense(self.dim_hidden_layers, input_dim=last_dims)(last_layer)
+            k_dn = Dense(self.dim_hidden_layers, input_dim=last_dims, W_regularizer=l2(3))(last_layer)
             k_dp = Dropout(self.dropout)(k_dn)
             last_layer = Activation('relu')(k_dp)            
             last_dims = self.dim_hidden_layers
@@ -253,5 +281,6 @@ class CNNTextClassifier(ClassifierMixin):
                       optimizer=self.optimizer,
                       metrics=['accuracy', precision, recall, f1_score])
         return model
+
 
 
