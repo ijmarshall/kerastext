@@ -123,16 +123,15 @@ class KerasVectorizer(VectorizerMixin):
     def fit_transform(self, raw_documents):
         self.fit(raw_documents)
         return self.transform(raw_documents)        
-
 class CNNTextClassifier(ClassifierMixin):
     
     def __init__(self, max_features=10000, max_len=500, batch_size=64,
                  stopping_patience=10, dropout=0.2, activation='relu',
                  num_filters=100, filter_size=None, num_epochs=40,
-                 num_hidden_layers=1, dim_hidden_layers=200,
+                 num_hidden_layers=0, dim_hidden_layers=200,
                  stopping_target='loss', stopping_less_is_good=True,
                  embedding_dim=200, embedding_weights=None, optimizer='adam',
-                 sampling_ratio=None, class_weight=None, validataion_split=0.1):
+                 sampling_ratio=None, class_weight=None, validataion_split=0):
         self.max_features = max_features
         self.max_len = max_len
         self.batch_size = batch_size
@@ -158,7 +157,8 @@ class CNNTextClassifier(ClassifierMixin):
     def fit(self, X_train, y_train):
         print("Processing data ({} samples)".format(len(y_train)))
         X_train = self.low_pass_filter(X_train)
-        X_train, X_val, y_train, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
+        if self.validation_split:
+            X_train, X_val, y_train, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
         if self.sampling_ratio:
             X_train, y_train = self.subsample(X_train, y_train, self.sampling_ratio)
             print("Sampled with ratio of {}, reduced to {} samples.".format(self.sampling_ratio, len(y_train)))
@@ -211,32 +211,47 @@ class CNNTextClassifier(ClassifierMixin):
         
             
     def generate_model(self):
-        inp = Input(shape=(self.max_len,), dtype='int32', name='input')
-        emb = Embedding(output_dim=self.embedding_dim, input_dim=self.max_features+3, input_length=self.max_len, weights=self.embedding_weights)(inp)
+        k_inp = Input(shape=(self.max_len,), dtype='int32', name='input')
+        k_emb = Embedding(input_dim=self.max_features+3, output_dim=self.embedding_dim,
+                        input_length=self.max_len, weights=self.embedding_weights)(k_inp)
 
-        n_gram_filters = []
+        k_conv_list = []
         for n in self.filter_size:
-            n_gram_filters.append(Flatten()(MaxPooling1D(pool_length=self.max_len - n + 1)(Convolution1D(nb_filter=self.num_filters,
+            k_conv = Convolution1D(nb_filter=self.num_filters,
                                     filter_length=n,
                                     border_mode='valid',
-                                    activation=self.activation,
-                                    subsample_length=1)(emb))))
+                                    activation='relu',
+                                    subsample_length=1)(k_emb)
+            
+            k_maxpool1d = MaxPooling1D(pool_length=self.max_len - n + 1)(k_conv)            
+            k_flatten = Flatten()(k_maxpool1d)
+            k_conv_list.append(k_flatten)
+            
 
-        if len(n_gram_filters)==1:
-            merged_layer = n_gram_filters[0]
+        if len(k_conv_list)==1:
+            k_merge = k_conv_list[0]
         else:
-            merged_layer = merge(n_gram_filters, mode='concat', concat_axis=1)
+            k_merge = merge(k_conv_list, mode='concat', concat_axis=1)
+            
+        # add hidden layers if wanted
+        last_dims = len(self.filter_size)*self.num_filters
+        last_layer = k_merge
 
-        dp = Dropout(self.dropout)(merged_layer)
-        # dn = Dense(1, input_dim=len(n_gram_filters)*nb_filter, W_regularizer=l2(l2_norm), activity_regularizer=activity_l2(l2_norm))(dp)
+        for n in range(self.num_hidden_layers):
+            k_dn = Dense(self.dim_hidden_layers, input_dim=last_dims)(last_layer)
+            k_dp = Dropout(self.dropout)(k_dn)
+            last_layer = Activation('relu')(k_dp)            
+            last_dims = self.dim_hidden_layers
+            
+        k_dn = Dense(1, input_dim=last_dims)(last_layer)
+            
+        k_out = Activation('softmax', name="output")(k_dn)
 
-        dn = Dense(1, input_dim=len(self.filter_size)*self.num_filters)(dp)
-        out = Activation('sigmoid', name="output")(dn)
-
-        model = Model(input=[inp], output=[out])
+        model = Model(input=[k_inp], output=[k_out])
 
         model.compile(loss='binary_crossentropy',
                       optimizer=self.optimizer,
                       metrics=['accuracy', precision, recall, f1_score])
         return model
+
 
