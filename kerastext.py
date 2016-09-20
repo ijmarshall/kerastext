@@ -199,7 +199,7 @@ class CNNTextClassifier(ClassifierMixin):
         pos_indices = np.where(y_bool==True)[0]
         neg_indices = np.where(y_bool==False)[0]
         sampled_indices = (np.append(pos_indices, np.random.choice(neg_indices, int(len(pos_indices)*ratio), replace=False)))
-        print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), len(pos_indices), len(neg_indices)))
+        print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), len(pos_indices), int(len(pos_indices)*ratio)))
         return X_train[sampled_indices], y_train[sampled_indices]
 
     def get_val_set(self, X, y):
@@ -239,5 +239,4 @@ class CNNTextClassifier(ClassifierMixin):
                       optimizer=self.optimizer,
                       metrics=['accuracy', precision, recall, f1_score])
         return model
-
 
