@@ -60,6 +60,22 @@ def f4_score(y, y_pred):
     return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
 
 
+def precision(y, y_pred):
+    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
+    num_true = K.sum(y)
+    num_pred = K.sum(y_pred_binary)
+    tp = K.sum(y * y_pred_binary)
+    return K.switch(num_pred>0, tp / num_pred, 0)
+
+def recall(y, y_pred):
+    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
+    num_true = K.sum(y)
+    num_pred = K.sum(y_pred_binary)
+    tp = K.sum(y * y_pred_binary)
+    return K.switch(num_true>0, tp / num_true, 0)
+
+
+
 class KerasVectorizer(VectorizerMixin):    
     def __init__(self, input='content', encoding='utf-8',
                  decode_error='strict', strip_accents=None,
