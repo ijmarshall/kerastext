@@ -124,18 +124,18 @@ class KerasVectorizer(VectorizerMixin):
         self.fit(raw_documents)
         return self.transform(raw_documents)        
 
-
 class CNNTextClassifier(ClassifierMixin):
     
-    def __init__(self, max_features=10000, max_len=500, batch_size=32,
-                 stopping_patience=10, dropout=0.5, activation='relu',
-                 num_filters=100, filter_size=None, num_epochs=40,
+    def __init__(self, max_features=10000, max_len=400, batch_size=50,
+                 stopping_patience=5, dropout=0.5, activation='relu',
+                 num_filters=100, filter_size=None, num_epochs=10,
                  num_hidden_layers=0, dim_hidden_layers=200,
-                 stopping_target='loss', stopping_less_is_good=True,
+                 stopping_target='val_f4_score', stopping_less_is_good=True,
                  embedding_dim=200, embedding_weights=None, optimizer='adam',
                  undersample_ratio=None, oversample_ratio=None, class_weight=None,
-                 validataion_split=0,
+                 validation_split=0,
                  l2=3):
+        # default hyperparams taken from Kim paper
         self.max_features = max_features
         self.max_len = max_len
         self.batch_size = batch_size
@@ -156,7 +156,7 @@ class CNNTextClassifier(ClassifierMixin):
         self.undersample_ratio = undersample_ratio # for class imbalance with few positive examples
         self.oversample_ratio = oversample_ratio
         self.class_weight = class_weight
-        self.validation_split = validataion_split
+        self.validation_split = validation_split
 
         
     def fit(self, X_train, y_train):
@@ -172,10 +172,14 @@ class CNNTextClassifier(ClassifierMixin):
             print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))
         elif self.oversample_ratio:
             X_train, y_train = self.oversample(X_train, y_train, self.oversample_ratio)
-            print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))
-        self.model.fit({"input":X_train}, {"output":y_train}, batch_size=self.batch_size, nb_epoch=self.num_epochs,
+            print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))        
+        if self.stopping_patience:
+            callbacks = [EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode='min')]
+        else:
+            callbacks = []
+        self.history = self.model.fit({"input":X_train}, {"output":y_train}, batch_size=self.batch_size, nb_epoch=self.num_epochs,
                        verbose=1, class_weight=self.class_weight,
-                       validation_data=validation_data)
+                       validation_data=validation_data, callbacks=callbacks)
         
 #     def fit_resample(self, X_train, y_train):
 #         X_train = self.low_pass_filter(X_train)
@@ -192,7 +196,7 @@ class CNNTextClassifier(ClassifierMixin):
     
     def low_pass_filter(self, X):
         # 1. set maximum document length
-        X=X[:,:self.max_len]
+        X=X[:,-self.max_len:]
         # 2. remove words less frequent than self.max_features
         X[X>self.max_features] = 2
         return X
@@ -262,7 +266,7 @@ class CNNTextClassifier(ClassifierMixin):
         last_layer = k_merge
         
         if self.num_hidden_layers == 0:
-            # put dropout after merge if no hidden layers
+        # put dropout after merge if no hidden layers
             last_layer = Dropout(self.dropout)(last_layer)
 
         for n in range(self.num_hidden_layers):
@@ -273,14 +277,11 @@ class CNNTextClassifier(ClassifierMixin):
             
         k_dn = Dense(1, input_dim=last_dims)(last_layer)
             
-        k_out = Activation('softmax', name="output")(k_dn)
+        k_out = Activation('sigmoid', name="output")(k_dn)
 
         model = Model(input=[k_inp], output=[k_out])
 
         model.compile(loss='binary_crossentropy',
                       optimizer=self.optimizer,
-                      metrics=['accuracy', precision, recall, f1_score])
+                      metrics=['accuracy', precision, recall, f1_score, f4_score])
         return model
-
-
-
