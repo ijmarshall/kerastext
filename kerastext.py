@@ -17,33 +17,25 @@ from keras.regularizers import l2, activity_l2
 from keras.callbacks import EarlyStopping
 import keras.backend as K
     
+
 def f1_score(y, y_pred):
     beta = 1
     y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
     num_true = K.sum(y)
     num_pred = K.sum(y_pred_binary)
     tp = K.sum(y * y_pred_binary)
-
     recall = K.switch(num_true>0, tp / num_true, 0)
     precision = K.switch(num_pred>0, tp / num_pred, 0)
-
     precision_recall_sum = recall + (beta*precision)
-
     return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
-    
-def f2_score(y, y_pred):
-    beta = 2
-    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
-    num_true = K.sum(y)
-    num_pred = K.sum(y_pred_binary)
-    tp = K.sum(y * y_pred_binary)
 
-    recall = K.switch(num_true>0, tp / num_true, 0)
-    precision = K.switch(num_pred>0, tp / num_pred, 0)
+# def precision(y, y_pred):
+#     y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
+#     num_true = K.sum(y)
+#     num_pred = K.sum(y_pred_binary)
+#     tp = K.sum(y * y_pred_binary)
+#     return K.switch(num_pred>0, tp / num_pred, 0)
 
-    precision_recall_sum = recall + (beta*precision)
-
-    return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
 
 def f4_score(y, y_pred):
     beta = 4
@@ -51,31 +43,114 @@ def f4_score(y, y_pred):
     num_true = K.sum(y)
     num_pred = K.sum(y_pred_binary)
     tp = K.sum(y * y_pred_binary)
-
     recall = K.switch(num_true>0, tp / num_true, 0)
     precision = K.switch(num_pred>0, tp / num_pred, 0)
-
     precision_recall_sum = recall + (beta*precision)
-
     return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
+    
+from theano.ifelse import ifelse
 
+def num_true(y, y_pred):
+#     target_recall = 24
+#     num_true = y.nonzero()[0].shape[0]
+#     target_tp_t = T.iround(target_recall * num_true)
+    return y[10][0]
+
+def target_tp_t(y, y_pred):
+    target_recall = 0.95
+    num_true = y.nonzero()[0].shape[0]
+    return num_true
+
+    
+def precision_at_recall(y, y_pred):
+    target_recall = 0.95
+    num_true = y.nonzero()[0].shape[0]
+    target_tp_t = T.iround(target_recall * num_true)    
+    pos_inds = y.nonzero()[0]
+    pred_pos = y_pred[pos_inds]
+    p_argsort = pred_pos.argsort(axis=0)
+    pred_cutoff = ifelse(num_true > 0, y_pred[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
+    return precision_at_cutoff(y, y_pred, pred_cutoff)
+
+from theano.printing import Print as Tpr
+
+# def spec_at_sens(y, y_pred):
+#     target_recall = 0.95
+#     pred_sort = y_pred.argsort(axis=0)
+#     pos_inds = yp.nonzero()[0]
+    
+    
+    
+#     num_true = Tpr('num_true')(pos_inds.shape[0])
+#     target_tp_t = Tpr("target_tp_t")(T.iround(target_recall * num_true))
+#     pred_pos = Tpr("pred_pos")(y_predp[pos_inds])
+#     p_argsort = Tpr("p_argsort")(pred_pos.argsort(axis=0))
+# #     cutoff_position_in_pos = p_argsort[-target_tp_t]    
+# #     cutoff_position_in_all = pos_inds[cutoff_position_in_pos]
+# #     cutoff_pred = y_predp[cutoff_position_in_all]
+
+#     some_are_true = Tpr('some_are_true')(T.gt(num_true, 0))
+#     pred_cutoff = ifelse(some_are_true, y_predp[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
+#     return specificity_at_cutoff(yp, y_predp, pred_cutoff)
+
+
+def spec_at_sens2(y, y_pred):
+    target_recall = 0.90
+    # extend both by one value
+    y_e = T.concatenate([np.array([1]), y.T[0]])
+    y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
+    
+    pos_inds = y_e.nonzero()[0]
+    num_true = pos_inds.shape[0]
+    target_tp_t = ifelse(num_true > 1, T.iround(target_recall * (num_true-1)) + 1, np.int64(0))
+    
+    pred_pos = y_pred_e[pos_inds]
+    p_argsort = pred_pos.argsort(axis=0)
+    
+    pred_cutoff = y_pred_e[pos_inds[p_argsort[-target_tp_t]]]
+    
+    return specificity_at_cutoff(y, y_pred, pred_cutoff)    
+    
+    
+
+
+
+def specificity_at_cutoff(y, y_pred, pred_cutoff):
+    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
+    tn = T.eq(y + y_pred_binary, 0).nonzero()[0].shape[0]
+    num_neg = T.eq(y, 0).nonzero()[0].shape[0]
+    return T.switch(num_neg>0, tn/num_neg, np.float32(0))
+
+def precision_at_cutoff(y, y_pred, pred_cutoff):
+    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
+    num_pred = y_pred_binary.nonzero()[0].shape[0]
+    tp_cutoff = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
+    precision = T.switch(num_pred>0, tp_cutoff / num_pred, 0)
+    return precision
 
 def precision(y, y_pred):
-    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
-    num_true = K.sum(y)
-    num_pred = K.sum(y_pred_binary)
-    tp = K.sum(y * y_pred_binary)
-    return K.switch(num_pred>0, tp / num_pred, 0)
+    return precision_at_cutoff(y, y_pred, np.float32(0.5))
 
+def specificity(y, y_pred):
+    return specificity_at_cutoff(y, y_pred, np.float32(0.5))
+
+def recall_at_cutoff(y, y_pred, pred_cutoff):
+    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
+    tp = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
+    num_true = y.nonzero()[0].shape[0]
+    return T.switch(num_true>0, tp/num_true, np.float32(0))
+    
 def recall(y, y_pred):
-    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
-    num_true = K.sum(y)
-    num_pred = K.sum(y_pred_binary)
-    tp = K.sum(y * y_pred_binary)
-    return K.switch(num_true>0, tp / num_true, 0)
+    return recall_at_cutoff(y, y_pred, np.float(0.5))
 
-
-
+def cutoff_score(y, y_pred):
+    target_recall = 0.95
+    pos_inds = y.nonzero()[0]
+    pred_pos = y_pred[pos_inds]
+    p_argsort = pred_pos.argsort(axis=0)    
+    target_tp_t = T.iround(target_recall * T.sum(y))
+    pred_cutoff = ifelse(pos_inds.shape[0] > 0, y_pred[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
+    return pred_cutoff
 class KerasVectorizer(VectorizerMixin):    
     def __init__(self, input='content', encoding='utf-8',
                  decode_error='strict', strip_accents=None,
@@ -148,7 +223,7 @@ class CNNTextClassifier(ClassifierMixin):
         self.num_hidden_layers = num_hidden_layers
         self.dim_hidden_layers = dim_hidden_layers
         self.stopping_target = stopping_target
-        self.stopping_less_is_good = stopping_less_is_good
+        self.stopping_mode = "min" if stopping_less_is_good else "max"
         self.embedding_dim = embedding_dim
         self.embedding_weights = self.get_embedding_weights(embedding_weights)
         self.optimizer = optimizer
@@ -162,24 +237,36 @@ class CNNTextClassifier(ClassifierMixin):
     def fit(self, X_train, y_train):
         print("Processing data ({} samples)".format(len(y_train)))
         X_train = self.low_pass_filter(X_train)
+        
         if self.validation_split:
             X_train, X_val, y_train, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
-            validation_data = ({"input":X_val}, {"output":y_val})
+            self.validation_data = (X_val, y_val)
         else:
-            validation_data = None
+            self.validation_data = None
         if self.undersample_ratio:
             X_train, y_train = self.undersample(X_train, y_train, self.undersample_ratio)
-            print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))
+            print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))            
         elif self.oversample_ratio:
             X_train, y_train = self.oversample(X_train, y_train, self.oversample_ratio)
             print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))        
         if self.stopping_patience:
-            callbacks = [EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode='min')]
+            callbacks = [EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode)]
         else:
-            callbacks = []
-        self.history = self.model.fit({"input":X_train}, {"output":y_train}, batch_size=self.batch_size, nb_epoch=self.num_epochs,
+            callbacks = []            
+        self.history = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
                        verbose=1, class_weight=self.class_weight,
-                       validation_data=validation_data, callbacks=callbacks)
+                       validation_data=self.validation_data, callbacks=callbacks)
+        
+        # debug - retry metrics manually
+        
+#         print("Predicting...")
+#         self.preds = self.predict(self.validation_data[0]['input'])
+#         pred_tensor = theano.shared(self.preds.astype(np.float32))
+#         true_tensor = theano.shared(self.validation_data[1]['output'].astype(np.float32))
+        
+#         print("Scores: precision {} recall {} precision @ recall {}".format(K.eval(precision(true_tensor, pred_tensor)), K.eval(recall(true_tensor, pred_tensor)), K.eval(precision_at_recall(true_tensor, pred_tensor))))
+        
+        
         
 #     def fit_resample(self, X_train, y_train):
 #         X_train = self.low_pass_filter(X_train)
@@ -205,7 +292,7 @@ class CNNTextClassifier(ClassifierMixin):
         if emb is None:
             return None
         else:
-            return [ebm[:self.max_features+3]]
+            return [emb[:self.max_features+3]]
         
     def undersample(self, X_train, y_train, ratio):
         """
@@ -226,16 +313,18 @@ class CNNTextClassifier(ClassifierMixin):
         pos_indices = np.where(y_bool==True)[0]
         neg_indices = np.where(y_bool==False)[0]
         sampled_indices = (np.append(neg_indices, np.random.choice(pos_indices, int(len(neg_indices)*ratio), replace=True)))
-        print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), len(pos_indices), int(len(pos_indices)*ratio)))
+        print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), ratio * len(neg_indices), len(neg_indices)))
         return X_train[sampled_indices], y_train[sampled_indices]
 
 
     def get_val_set(self, X, y):
         num_rows = X.shape[0]
-        inds = np.random.permutation(num_rows)
-        cutoff = int(num_rows * self.validation_split)
-        inds_val, inds_train = inds[:cutoff], inds[cutoff:]
-        return X[inds_train], X[inds_val], y[inds_train], y[inds_val]
+#         inds = np.random.permutation(num_rows)
+
+        cutoff = int(num_rows * (1-self.validation_split))
+#         inds_val, inds_train = inds[:cutoff], inds[cutoff:]
+#         return X[inds_train], X[inds_val], y[inds_train], y[inds_val]
+        return X[:cutoff], X[cutoff:], y[:cutoff], y[cutoff:]
         
             
     def generate_model(self):
@@ -276,12 +365,19 @@ class CNNTextClassifier(ClassifierMixin):
             last_dims = self.dim_hidden_layers
             
         k_dn = Dense(1, input_dim=last_dims)(last_layer)
+        
+        k_dp = Dropout(self.dropout)(k_dn)
             
-        k_out = Activation('sigmoid', name="output")(k_dn)
+        k_out = Activation('sigmoid', name="output")(k_dp)
 
         model = Model(input=[k_inp], output=[k_out])
 
         model.compile(loss='binary_crossentropy',
                       optimizer=self.optimizer,
-                      metrics=['accuracy', precision, recall, f1_score, f4_score])
+#                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
+#                               yp_sum, yp_mean, yp_element])
+                      metrics=['accuracy', f1_score, precision, recall, specificity, spec_at_sens2])
+
+
         return model
+
