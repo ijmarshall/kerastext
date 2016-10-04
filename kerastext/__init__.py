@@ -19,6 +19,8 @@ import keras.backend as K
 from theano.ifelse import ifelse
 import theano.tensor as T
 
+import pickle
+
 from hyperopt import fmin, tpe, hp, FMinIter, base
 import os
 import numpy as np
