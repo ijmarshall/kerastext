@@ -1,5 +1,6 @@
 from setuptools import setup
 
-setup(name='iains-keras-text-stuff',
+setup(name='iains_keras_text_classifier_code',
+      author='Iain Marshall',
       version='0.0.1',
-      scripts=['kerastext'])
+      packages=['kerastext'])
