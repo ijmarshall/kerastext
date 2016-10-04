@@ -63,30 +63,25 @@ def precision_at_recall(y, y_pred):
     p_argsort = pred_pos.argsort(axis=0)
     pred_cutoff = ifelse(num_true > 0, y_pred[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
     return precision_at_cutoff(y, y_pred, pred_cutoff)
-
-from theano.printing import Print as Tpr
-
-# def spec_at_sens(y, y_pred):
-#     target_recall = 0.95
-#     pred_sort = y_pred.argsort(axis=0)
-#     pos_inds = yp.nonzero()[0]
+        
+def precision_at_recall(y, y_pred):
+    target_recall = 0.90
+    # extend both by one value
+    y_e = T.concatenate([np.array([1]), y.T[0]])
+    y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
     
+    pos_inds = y_e.nonzero()[0]
+    num_true = pos_inds.shape[0]
+    target_tp_t = ifelse(num_true > 1, T.iround(target_recall * (num_true-1)) + 1, np.int64(0))
     
+    pred_pos = y_pred_e[pos_inds]
+    p_argsort = pred_pos.argsort(axis=0)
     
-#     num_true = Tpr('num_true')(pos_inds.shape[0])
-#     target_tp_t = Tpr("target_tp_t")(T.iround(target_recall * num_true))
-#     pred_pos = Tpr("pred_pos")(y_predp[pos_inds])
-#     p_argsort = Tpr("p_argsort")(pred_pos.argsort(axis=0))
-# #     cutoff_position_in_pos = p_argsort[-target_tp_t]    
-# #     cutoff_position_in_all = pos_inds[cutoff_position_in_pos]
-# #     cutoff_pred = y_predp[cutoff_position_in_all]
+    pred_cutoff = y_pred_e[pos_inds[p_argsort[-target_tp_t]]]
+    
+    return specificity_at_cutoff(y, y_pred, pred_cutoff)    
 
-#     some_are_true = Tpr('some_are_true')(T.gt(num_true, 0))
-#     pred_cutoff = ifelse(some_are_true, y_predp[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
-#     return specificity_at_cutoff(yp, y_predp, pred_cutoff)
-
-
-def spec_at_sens2(y, y_pred):
+def specificity_at_recall(y, y_pred):
     target_recall = 0.90
     # extend both by one value
     y_e = T.concatenate([np.array([1]), y.T[0]])
@@ -103,9 +98,6 @@ def spec_at_sens2(y, y_pred):
     
     return specificity_at_cutoff(y, y_pred, pred_cutoff)    
     
-    
-
-
 
 def specificity_at_cutoff(y, y_pred, pred_cutoff):
     y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
@@ -120,29 +112,21 @@ def precision_at_cutoff(y, y_pred, pred_cutoff):
     precision = T.switch(num_pred>0, tp_cutoff / num_pred, 0)
     return precision
 
+def recall_at_cutoff(y, y_pred, pred_cutoff):
+    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
+    tp = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
+    num_true = y.nonzero()[0].shape[0]
+    return T.switch(num_true>0, tp/num_true, np.float32(0))
+
 def precision(y, y_pred):
     return precision_at_cutoff(y, y_pred, np.float32(0.5))
 
 def specificity(y, y_pred):
     return specificity_at_cutoff(y, y_pred, np.float32(0.5))
 
-def recall_at_cutoff(y, y_pred, pred_cutoff):
-    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
-    tp = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
-    num_true = y.nonzero()[0].shape[0]
-    return T.switch(num_true>0, tp/num_true, np.float32(0))
-    
 def recall(y, y_pred):
     return recall_at_cutoff(y, y_pred, np.float(0.5))
 
-def cutoff_score(y, y_pred):
-    target_recall = 0.95
-    pos_inds = y.nonzero()[0]
-    pred_pos = y_pred[pos_inds]
-    p_argsort = pred_pos.argsort(axis=0)    
-    target_tp_t = T.iround(target_recall * T.sum(y))
-    pred_cutoff = ifelse(pos_inds.shape[0] > 0, y_pred[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
-    return pred_cutoff
 class KerasVectorizer(VectorizerMixin):    
     def __init__(self, input='content', encoding='utf-8',
                  decode_error='strict', strip_accents=None,
@@ -200,8 +184,7 @@ class CNNTextClassifier(ClassifierMixin):
                  stopping_target='val_f4_score', stopping_less_is_good=True,
                  embedding_dim=200, embedding_weights=None, optimizer='adam',
                  undersample_ratio=None, oversample_ratio=None, class_weight=None,
-                 validation_split=0,
-                 l2=3):
+                 validation_split=0, l2=3, log_to_file=True):
         # default hyperparams taken from Kim paper
         self.max_features = max_features
         self.max_len = max_len
@@ -224,8 +207,8 @@ class CNNTextClassifier(ClassifierMixin):
         self.oversample_ratio = oversample_ratio
         self.class_weight = class_weight
         self.validation_split = validation_split
-
-        
+        self.log_to_file = log_to_file
+    
     def fit(self, X_train, y_train):
         print("Processing data ({} samples)".format(len(y_train)))
         X_train = self.low_pass_filter(X_train)
@@ -241,10 +224,12 @@ class CNNTextClassifier(ClassifierMixin):
         elif self.oversample_ratio:
             X_train, y_train = self.oversample(X_train, y_train, self.oversample_ratio)
             print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))        
+
+        callbacks = []
         if self.stopping_patience:
-            callbacks = [EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode)]
-        else:
-            callbacks = []            
+            callbacks.append(EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode))
+        if self.log_to_file:                
+            callbacks.append(CSVLogger('log.csv' if self.log_to_file==True else self.log_to_file))
         self.history = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
                        verbose=1, class_weight=self.class_weight,
                        validation_data=self.validation_data, callbacks=callbacks)
@@ -372,6 +357,7 @@ class CNNTextClassifier(ClassifierMixin):
 
 
         return model
+
 
 
 def fmin_persist(fn, space, algo, max_evals, rstate=None,
