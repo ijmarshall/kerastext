@@ -16,6 +16,8 @@ from keras.models import Model
 from keras.regularizers import l2, activity_l2
 from keras.callbacks import EarlyStopping
 import keras.backend as K
+from theano.ifelse import ifelse
+import theano.tensor as T
 
 from hyperopt import fmin, tpe, hp, FMinIter, base
 import os
@@ -45,7 +47,7 @@ def f4_score(y, y_pred):
     precision_recall_sum = recall + (beta*precision)
     return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
     
-from theano.ifelse import ifelse
+
 
 
 def target_tp_t(y, y_pred):
