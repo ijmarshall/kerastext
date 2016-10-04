@@ -16,7 +16,11 @@ from keras.models import Model
 from keras.regularizers import l2, activity_l2
 from keras.callbacks import EarlyStopping
 import keras.backend as K
-    
+
+from hyperopt import hp
+import os
+import numpy as np
+
 
 def f1_score(y, y_pred):
     beta = 1
@@ -28,13 +32,6 @@ def f1_score(y, y_pred):
     precision = K.switch(num_pred>0, tp / num_pred, 0)
     precision_recall_sum = recall + (beta*precision)
     return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
-
-# def precision(y, y_pred):
-#     y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
-#     num_true = K.sum(y)
-#     num_pred = K.sum(y_pred_binary)
-#     tp = K.sum(y * y_pred_binary)
-#     return K.switch(num_pred>0, tp / num_pred, 0)
 
 
 def f4_score(y, y_pred):
@@ -50,11 +47,6 @@ def f4_score(y, y_pred):
     
 from theano.ifelse import ifelse
 
-def num_true(y, y_pred):
-#     target_recall = 24
-#     num_true = y.nonzero()[0].shape[0]
-#     target_tp_t = T.iround(target_recall * num_true)
-    return y[10][0]
 
 def target_tp_t(y, y_pred):
     target_recall = 0.95
@@ -381,3 +373,110 @@ class CNNTextClassifier(ClassifierMixin):
 
         return model
 
+
+def fmin_persist(fn, space, algo, max_evals, rstate=None,
+         allow_trials_fmin=True, pass_expr_memo_ctrl=None,
+         catch_eval_exceptions=False,
+         verbose=0, trials_pickle=None
+        ):
+    """Minimize a function over a hyperparameter space.
+    More realistically: *explore* a function over a hyperparameter space
+    according to a given algorithm, allowing up to a certain number of
+    function evaluations.  As points are explored, they are accumulated in
+    `trials`
+    Parameters
+    ----------
+    fn : callable (trial point -> loss)
+        This function will be called with a value generated from `space`
+        as the first and possibly only argument.  It can return either
+        a scalar-valued loss, or a dictionary.  A returned dictionary must
+        contain a 'status' key with a value from `STATUS_STRINGS`, must
+        contain a 'loss' key if the status is `STATUS_OK`. Particular
+        optimization algorithms may look for other keys as well.  An
+        optional sub-dictionary associated with an 'attachments' key will
+        be removed by fmin its contents will be available via
+        `trials.trial_attachments`. The rest (usually all) of the returned
+        dictionary will be stored and available later as some 'result'
+        sub-dictionary within `trials.trials`.
+    space : hyperopt.pyll.Apply node
+        The set of possible arguments to `fn` is the set of objects
+        that could be created with non-zero probability by drawing randomly
+        from this stochastic program involving involving hp_<xxx> nodes
+        (see `hyperopt.hp` and `hyperopt.pyll_utils`).
+    algo : search algorithm
+        This object, such as `hyperopt.rand.suggest` and
+        `hyperopt.tpe.suggest` provides logic for sequential search of the
+        hyperparameter space.
+    max_evals : int
+        Allow up to this many function evaluations before returning.
+    trials : None or base.Trials (or subclass)
+        Storage for completed, ongoing, and scheduled evaluation points.  If
+        None, then a temporary `base.Trials` instance will be created.  If
+        a trials object, then that trials object will be affected by
+        side-effect of this call.
+    rstate : numpy.RandomState, default numpy.random or `$HYPEROPT_FMIN_SEED`
+        Each call to `algo` requires a seed value, which should be different
+        on each call. This object is used to draw these seeds via `randint`.
+        The default rstate is
+        `numpy.random.RandomState(int(env['HYPEROPT_FMIN_SEED']))`
+        if the `HYPEROPT_FMIN_SEED` environment variable is set to a non-empty
+        string, otherwise np.random is used in whatever state it is in.
+    verbose : int
+        Print out some information to stdout during search.
+    allow_trials_fmin : bool, default True
+        If the `trials` argument
+    pass_expr_memo_ctrl : bool, default False
+        If set to True, `fn` will be called in a different more low-level
+        way: it will receive raw hyperparameters, a partially-populated
+        `memo`, and a Ctrl object for communication with this Trials
+        object.
+    return_argmin : bool, default True
+        If set to False, this function returns nothing, which can be useful
+        for example if it is expected that `len(trials)` may be zero after
+        fmin, and therefore `trials.argmin` would be undefined.
+    Returns
+    -------
+    argmin : None or dictionary
+        If `return_argmin` is False, this function returns nothing.
+        Otherwise, it returns `trials.argmin`.  This argmin can be converted
+        to a point in the configuration space by calling
+        `hyperopt.space_eval(space, best_vals)`.
+    """
+    
+    if trials_pickle is None:
+        raise AttributeError("trials_pickle filename is required to use this function")
+    
+    if rstate is None:
+        env_rseed = os.environ.get('HYPEROPT_FMIN_SEED', '')
+        if env_rseed:
+            rstate = np.random.RandomState(int(env_rseed))
+        else:
+            rstate = np.random.RandomState()
+
+    try:
+        with open(trials_pickle, 'rb') as trialf:
+            trials = pickle.load(trialf)
+    except:
+        trials = base.Trials()
+    
+    domain = base.Domain(fn, space,
+        pass_expr_memo_ctrl=pass_expr_memo_ctrl)
+
+    rval = FMinIter(algo, domain, trials, max_evals=max_evals,
+                    rstate=rstate,
+                    verbose=verbose)
+    rval.catch_eval_exceptions = catch_eval_exceptions
+    print(len(trials), max_evals)
+    
+    if len(trials) >= max_evals:
+        return trials
+    else:
+        print('trying...')
+        for it in rval:            
+            print("Trial {} done!.. pickling...".format(len(trials)))
+            with open(trials_pickle, 'wb') as trialf:
+                pickle.dump(trials, trialf)
+        # do it again since the weird way it does the generator
+        with open(trials_pickle, 'wb') as trialf:
+            pickle.dump(trials, trialf)
+    return trials
