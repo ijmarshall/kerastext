@@ -17,7 +17,7 @@ from keras.regularizers import l2, activity_l2
 from keras.callbacks import EarlyStopping
 import keras.backend as K
 
-from hyperopt import hp
+from hyperopt import fmin, tpe, hp, FMinIter, base
 import os
 import numpy as np
 
