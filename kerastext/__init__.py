@@ -454,12 +454,10 @@ def fmin_persist(fn, space, algo, max_evals, rstate=None,
                     rstate=rstate,
                     verbose=verbose)
     rval.catch_eval_exceptions = catch_eval_exceptions
-    print(len(trials), max_evals)
-    
+
     if len(trials) >= max_evals:
         return trials
     else:
-        print('trying...')
         for it in rval:            
             print("Trial {} done!.. pickling...".format(len(trials)))
             with open(trials_pickle, 'wb') as trialf:
