@@ -255,9 +255,11 @@ class CNNTextClassifier(ClassifierMixin):
                 for k, v in h.history.items():
                     self.history[k].extend(v)
 
-                if reduce_patience == 0:
-                        print("Out of patience!")
-                        break
+                print('{} patiences left...'.format(patience_counter))
+
+                if patience_counter == 0:
+                    print("Out of patience!")
+                    break
 
         else:            
             if self.oversample_ratio:
