@@ -237,11 +237,11 @@ class CNNTextClassifier(ClassifierMixin):
             first_loop = True
 
             for epoch_i in range(self.num_epochs):
-                X_train, y_train = self.undersample(X_train, y_train, self.undersample_ratio)
+                X_train_s, y_train_s = self.undersample(X_train, y_train, self.undersample_ratio)
 
                 print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))
 
-                h = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=1,
+                h = self.model.fit(X_train_s, y_train_s, batch_size=self.batch_size, nb_epoch=1,
                            verbose=1, class_weight=self.class_weight,
                            validation_data=self.validation_data)
 
