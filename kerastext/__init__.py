@@ -271,7 +271,7 @@ class CNNTextClassifier(ClassifierMixin):
                 callbacks.append(CSVLogger('log.csv' if self.log_to_file==True else self.log_to_file))
             self.history = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
                            verbose=1, class_weight=self.class_weight,
-                           validation_data=self.validation_data, callbacks=callbacks)
+                           validation_data=self.validation_data, callbacks=callbacks).history
             
         # debug - retry metrics manually
         
