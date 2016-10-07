@@ -252,7 +252,7 @@ class CNNTextClassifier(ClassifierMixin):
                     if reduce_patience:
                         patience -= 1
                     
-                for k, v in h.history:
+                for k, v in h.history.items():
                     self.history[k].extend(v)
 
                 if reduce_patience == 0:
