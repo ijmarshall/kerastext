@@ -59,7 +59,7 @@ def target_tp_t(y, y_pred):
 
     
 def precision_at_recall(y, y_pred):
-    target_recall = 0.95
+    target_recall = 0.995
     num_true = y.nonzero()[0].shape[0]
     target_tp_t = T.iround(target_recall * num_true)    
     pos_inds = y.nonzero()[0]
@@ -69,7 +69,7 @@ def precision_at_recall(y, y_pred):
     return precision_at_cutoff(y, y_pred, pred_cutoff)
         
 def precision_at_recall(y, y_pred):
-    target_recall = 0.90
+    target_recall = 0.995
     # extend both by one value
     y_e = T.concatenate([np.array([1]), y.T[0]])
     y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
@@ -86,7 +86,7 @@ def precision_at_recall(y, y_pred):
     return specificity_at_cutoff(y, y_pred, pred_cutoff)    
 
 def specificity_at_recall(y, y_pred):
-    target_recall = 0.90
+    target_recall = 0.995
     # extend both by one value
     y_e = T.concatenate([np.array([1]), y.T[0]])
     y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
