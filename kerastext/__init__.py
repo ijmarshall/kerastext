@@ -241,9 +241,9 @@ class CNNTextClassifier(ClassifierMixin):
 
                 print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))
 
-                h = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
+                h = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=1,
                            verbose=1, class_weight=self.class_weight,
-                           validation_data=self.validation_data, callbacks=callbacks)
+                           validation_data=self.validation_data)
 
                 if first_loop:
                     first_loop=False
