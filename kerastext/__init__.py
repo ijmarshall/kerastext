@@ -185,7 +185,7 @@ class CNNTextClassifier(ClassifierMixin):
                  stopping_patience=5, dropout=0.5, activation='relu',
                  num_filters=100, filter_size=None, num_epochs=10,
                  num_hidden_layers=0, dim_hidden_layers=200,
-                 stopping_target='val_f4_score', stopping_less_is_good=True,
+                 stopping_target='loss', stopping_less_is_good=True,
                  embedding_dim=200, embedding_weights=None, optimizer='adam',
                  undersample_ratio=None, oversample_ratio=None, class_weight=None,
                  validation_split=0, l2=3, log_to_file=True):
@@ -222,22 +222,57 @@ class CNNTextClassifier(ClassifierMixin):
             self.validation_data = (X_val, y_val)
         else:
             self.validation_data = None
-        if self.undersample_ratio:
-            X_train, y_train = self.undersample(X_train, y_train, self.undersample_ratio)
-            print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))            
-        elif self.oversample_ratio:
-            X_train, y_train = self.oversample(X_train, y_train, self.oversample_ratio)
-            print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))        
 
-        callbacks = []
-        if self.stopping_patience:
-            callbacks.append(EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode))
-        if self.log_to_file:                
-            callbacks.append(CSVLogger('log.csv' if self.log_to_file==True else self.log_to_file))
-        self.history = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
-                       verbose=1, class_weight=self.class_weight,
-                       validation_data=self.validation_data, callbacks=callbacks)
         
+
+
+
+        if self.undersample_ratio:
+
+            from collections import defaultdict
+
+            self.history = defaultdict(list)
+
+            patience_counter = self.stopping_patience
+            first_loop = True
+
+            for epoch_i in range(num_epochs):
+                X_train, y_train = self.undersample(X_train, y_train, self.undersample_ratio)
+
+                print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))
+
+                h = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
+                           verbose=1, class_weight=self.class_weight,
+                           validation_data=self.validation_data, callbacks=callbacks)
+
+                if first_loop:
+                    first_loop=False
+                else:
+                    reduce_patience = (h.history[self.stopping_target] >= self.history[self.stopping_target]) if self.stopping_less_is_good else h.history[self.stopping_target] <= self.history[self.stopping_target]
+                    if reduce_patience:
+                        patience -= 1
+                    
+                for k, v in h.history:
+                    self.history[k].extend(v)
+
+                if reduce_patience == 0:
+                        print("Out of patience!")
+                        break
+
+        else:            
+            if self.oversample_ratio:
+                X_train, y_train = self.oversample(X_train, y_train, self.oversample_ratio)
+                print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))        
+
+            callbacks = []
+            if self.stopping_patience:
+                callbacks.append(EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode))
+            if self.log_to_file:                
+                callbacks.append(CSVLogger('log.csv' if self.log_to_file==True else self.log_to_file))
+            self.history = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
+                           verbose=1, class_weight=self.class_weight,
+                           validation_data=self.validation_data, callbacks=callbacks)
+            
         # debug - retry metrics manually
         
 #         print("Predicting...")
