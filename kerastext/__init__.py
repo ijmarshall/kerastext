@@ -236,7 +236,7 @@ class CNNTextClassifier(ClassifierMixin):
             patience_counter = self.stopping_patience
             first_loop = True
 
-            for epoch_i in range(num_epochs):
+            for epoch_i in range(self.num_epochs):
                 X_train, y_train = self.undersample(X_train, y_train, self.undersample_ratio)
 
                 print("Sampled with ratio of {}, reduced to {} samples.".format(self.undersample_ratio, len(y_train)))
