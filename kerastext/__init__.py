@@ -545,7 +545,7 @@ class RCTClassifier(ClassifierMixin):
         
         if self.validation_split:
             X_train, X_val, X_ptyp_train, X_ptyp_val, y_train, y_val = self.get_val_set(X_train, X_ptyp, y_train) # skim a bit off for monitoring
-            self.validation_data = (X_val, X_ptyp_val, y_val)
+            self.validation_data = ([X_val, X_ptyp_val], [y_val])
         else:
             self.validation_data = None
 
@@ -709,7 +709,7 @@ class RCTClassifier(ClassifierMixin):
 
         k_merge = merge([k_dp, k_ptyp_inp], concat_axis=1)
         k_out = Activation('sigmoid', name="y")(k_merge)
-        model = Model(input=[k_inp, k_ptyp_inp], output=k_out)
+        model = Model(input=[k_inp, k_ptyp_inp], output=[k_out])
         model.compile(loss='binary_crossentropy',
                       optimizer=self.optimizer,
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
