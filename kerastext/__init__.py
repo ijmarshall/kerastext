@@ -666,7 +666,7 @@ def fmin_persist(fn, space, algo, max_evals, rstate=None,
         
             
     def generate_model(self):
-        k_inp = Input(shape=(self.max_len,), dtype='int32', name='X')
+        k_inp = Input(shape=(self.max_len,), dtype='int32', name='X_inp')
         k_ptyp_inp = Input(shape=(1,), dtype='int32', name='X_ptyp')
         k_emb = Embedding(input_dim=self.max_features+3, output_dim=self.embedding_dim,
                         input_length=self.max_len, weights=self.embedding_weights)(k_inp)
@@ -709,7 +709,7 @@ def fmin_persist(fn, space, algo, max_evals, rstate=None,
 
         k_merge = merge(k_dp, k_ptyp_inp, concat_axis=1)
         k_out = Activation('sigmoid', name="output")(k_merge)
-        model = Model(input=[k_inp], output=[k_out])
+        model = Model(input=[k_inp, k_ptyp_inp], output=[k_out])
         model.compile(loss='binary_crossentropy',
                       optimizer=self.optimizer,
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
@@ -719,4 +719,4 @@ def fmin_persist(fn, space, algo, max_evals, rstate=None,
 
         return model
 
-        
+
