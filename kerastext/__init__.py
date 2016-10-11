@@ -503,3 +503,220 @@ def fmin_persist(fn, space, algo, max_evals, rstate=None,
         with open(trials_pickle, 'wb') as trialf:
             pickle.dump(trials, trialf)
     return trials
+
+
+    class RCTClassifier(ClassifierMixin):
+    
+    def __init__(self, max_features=10000, max_len=400, batch_size=50,
+                 stopping_patience=5, dropout=0.5, activation='relu',
+                 num_filters=100, filter_size=None, num_epochs=10,
+                 num_hidden_layers=0, dim_hidden_layers=200,
+                 stopping_target='loss', stopping_less_is_good=True,
+                 embedding_dim=200, embedding_weights=None, optimizer='adam',
+                 undersample_ratio=None, oversample_ratio=None, class_weight=None,
+                 validation_split=0, l2=3, log_to_file=True):
+        # default hyperparams taken from Kim paper
+        self.max_features = max_features
+        self.max_len = max_len
+        self.batch_size = batch_size
+        self.stopping_patience = stopping_patience
+        self.dropout = dropout
+        self.activation = activation
+        self.num_filters = num_filters        
+        self.filter_size = [3, 4, 5] if filter_size is None else filter_size
+        self.num_epochs = num_epochs
+        self.num_hidden_layers = num_hidden_layers
+        self.dim_hidden_layers = dim_hidden_layers
+        self.stopping_target = stopping_target
+        self.stopping_mode = "min" if stopping_less_is_good else "max"
+        self.embedding_dim = embedding_dim
+        self.embedding_weights = self.get_embedding_weights(embedding_weights)
+        self.optimizer = optimizer
+        self.model = self.generate_model()
+        self.undersample_ratio = undersample_ratio # for class imbalance with few positive examples
+        self.oversample_ratio = oversample_ratio
+        self.class_weight = class_weight
+        self.validation_split = validation_split
+        self.log_to_file = log_to_file
+    
+    def fit(self, X_train, X_ptyp, y_train):
+        print("Processing data ({} samples)".format(len(y_train)))
+        X_train = self.low_pass_filter(X_train)
+        
+        if self.validation_split:
+            X_train, X_val, X_ptyp_train, X_ptyp_val, y_train, y_val = self.get_val_set(X_train, X_ptyp, y_train) # skim a bit off for monitoring
+            self.validation_data = (X_val, X_ptyp_val, y_val)
+        else:
+            self.validation_data = None
+
+        if self.undersample_ratio:
+
+            from collections import defaultdict
+
+            self.history = defaultdict(list)
+
+            patience_counter = self.stopping_patience
+            first_loop = True
+
+            for epoch_i in range(self.num_epochs):
+                X_train_s, X_ptyp_train_s, y_train_s = self.undersample(X_train, X_ptyp_train, y_train, self.undersample_ratio)
+
+                h = self.model.fit({"X":X_train_s, "X_ptyp": X_train_ptyp_s}, {"y": y_train_s}, batch_size=self.batch_size, nb_epoch=1,
+                           verbose=1, class_weight=self.class_weight,
+                           validation_data=self.validation_data)
+
+                if first_loop:
+                    first_loop=False
+                else:
+                    reduce_patience = (h.history[self.stopping_target] >= self.history[self.stopping_target]) if self.stopping_mode=='min' else h.history[self.stopping_target] <= self.history[self.stopping_target]
+                    if reduce_patience:
+                        patience_counter -= 1
+                    
+                for k, v in h.history.items():
+                    self.history[k].extend(v)
+
+                print('{} patiences left...'.format(patience_counter))
+
+                if patience_counter == 0:
+                    print("Out of patience!")
+                    break
+
+        else:            
+            if self.oversample_ratio:
+                X_train, X_ptyp_train, y_train = self.oversample(X_train, X_ptyp_train, y_train, self.oversample_ratio)
+                print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))        
+
+            callbacks = []
+            if self.stopping_patience:
+                callbacks.append(EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode))
+            if self.log_to_file:                
+                callbacks.append(CSVLogger('log.csv' if self.log_to_file==True else self.log_to_file))
+            self.history = self.model.fit({"X": X_train, "X_ptyp": X_ptyp_train}, {"y": y_train}, batch_size=self.batch_size, nb_epoch=self.num_epochs,
+                           verbose=1, class_weight=self.class_weight,
+                           validation_data=self.validation_data, callbacks=callbacks).history
+            
+        # debug - retry metrics manually
+        
+#         print("Predicting...")
+#         self.preds = self.predict(self.validation_data[0]['input'])
+#         pred_tensor = theano.shared(self.preds.astype(np.float32))
+#         true_tensor = theano.shared(self.validation_data[1]['output'].astype(np.float32))
+        
+#         print("Scores: precision {} recall {} precision @ recall {}".format(K.eval(precision(true_tensor, pred_tensor)), K.eval(recall(true_tensor, pred_tensor)), K.eval(precision_at_recall(true_tensor, pred_tensor))))
+        
+        
+        
+#     def fit_resample(self, X_train, y_train):
+#         X_train = self.low_pass_filter(X_train)
+#         X_t, X_val, y_t, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
+#         for epoch in range(self.num_epochs):
+#             X_t_s, y_t_s = self.subsample(X_t, y_t, self.sampling_ratio)
+#             self.model.fit({"input":X_t_s}, {"output":y_t_s}, batch_size=self.batch_size, nb_epoch=1,
+#                            verbose=1, class_weight=self.class_weight,
+#                            validation_data=({"input":X_val}, {"output":y_val}))
+            
+    def predict(self, X_test, X_ptyp_test):
+        X_test = self.low_pass_filter(X_test)
+        return self.model.predict({"X":X_test, "X_ptyp":X_ptyp_test})
+    
+    def low_pass_filter(self, X):
+        # 1. set maximum document length
+        X=X[:,-self.max_len:]
+        # 2. remove words less frequent than self.max_features
+        X[X>self.max_features] = 2
+        return X
+    
+    def get_embedding_weights(self, emb):
+        if emb is None:
+            return None
+        else:
+            return [emb[:self.max_features+3]]
+        
+    def undersample(self, X_train, X_ptyp_train, y_train, ratio):
+        """
+        sample a proportion of negative samples for class imbalanced problems
+        """
+        y_bool = y_train.astype('bool')
+        pos_indices = np.where(y_bool==True)[0]
+        neg_indices = np.where(y_bool==False)[0]
+        sampled_indices = (np.append(pos_indices, np.random.choice(neg_indices, int(len(pos_indices)*ratio), replace=False)))
+        print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), len(pos_indices), int(len(pos_indices)*ratio)))
+        return X_train[sampled_indices], X_ptyp_train[sampled_indices], y_train[sampled_indices]
+    
+    def oversample(self, X_train, X_ptyp_train, y_train, ratio):
+        """
+        oversample positive samples for class imbalanced problems
+        """
+        y_bool = y_train.astype('bool')
+        pos_indices = np.where(y_bool==True)[0]
+        neg_indices = np.where(y_bool==False)[0]
+        sampled_indices = (np.append(neg_indices, np.random.choice(pos_indices, int(len(neg_indices)*ratio), replace=True)))
+        print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), ratio * len(neg_indices), len(neg_indices)))
+        return X_train[sampled_indices], X_ptyp_train[sampled_indices], y_train[sampled_indices]
+
+
+    def get_val_set(self, X, X_ptyp, y):
+        num_rows = X.shape[0]
+#         inds = np.random.permutation(num_rows)
+
+        cutoff = int(num_rows * (1-self.validation_split))
+#         inds_val, inds_train = inds[:cutoff], inds[cutoff:]
+#         return X[inds_train], X[inds_val], y[inds_train], y[inds_val]
+        return X[:cutoff], X[cutoff:], X_ptyp[:cutoff], X_ptyp[cutoff:], y[:cutoff], y[cutoff:]
+        
+            
+    def generate_model(self):
+        k_inp = Input(shape=(self.max_len,), dtype='int32', name='X')
+        k_ptyp_inp = Input(shape=(1,), dtype='int32', name='X_ptyp')
+        k_emb = Embedding(input_dim=self.max_features+3, output_dim=self.embedding_dim,
+                        input_length=self.max_len, weights=self.embedding_weights)(k_inp)
+
+        k_conv_list = []
+        for n in self.filter_size:
+            k_conv = Convolution1D(nb_filter=self.num_filters,
+                                    filter_length=n,
+                                    border_mode='valid',
+                                    activation='relu',
+                                    subsample_length=1)(k_emb)
+            
+            k_maxpool1d = MaxPooling1D(pool_length=self.max_len - n + 1)(k_conv)            
+            k_flatten = Flatten()(k_maxpool1d)
+            k_conv_list.append(k_flatten)
+            
+
+        if len(k_conv_list)==1:
+            k_merge = k_conv_list[0]
+        else:
+            k_merge = merge(k_conv_list, mode='concat', concat_axis=1)
+            
+        # add hidden layers if wanted
+        last_dims = len(self.filter_size)*self.num_filters
+        last_layer = k_merge
+        
+        if self.num_hidden_layers == 0:
+        # put dropout after merge if no hidden layers
+            last_layer = Dropout(self.dropout)(last_layer)
+
+        for n in range(self.num_hidden_layers):
+            k_dn = Dense(self.dim_hidden_layers, input_dim=last_dims, W_regularizer=l2(3))(last_layer)
+            k_dp = Dropout(self.dropout)(k_dn)
+            last_layer = Activation('relu')(k_dp)            
+            last_dims = self.dim_hidden_layers
+            
+        k_dn = Dense(1, input_dim=last_dims)(last_layer)
+        
+        k_dp = Dropout(self.dropout)(k_dn)
+
+        k_merge = merge(k_dp, k_ptyp_inp, concat_axis=1)
+        k_out = Activation('sigmoid', name="output")(k_merge)
+        model = Model(input=[k_inp], output=[k_out])
+        model.compile(loss='binary_crossentropy',
+                      optimizer=self.optimizer,
+#                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
+#                               yp_sum, yp_mean, yp_element])
+                      metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall])
+
+
+        return model
+
+        
