@@ -561,7 +561,7 @@ class RCTClassifier(ClassifierMixin):
             for epoch_i in range(self.num_epochs):
                 X_train_s, X_ptyp_train_s, y_train_s = self.undersample(X_train, X_ptyp_train, y_train, self.undersample_ratio)
 
-                h = self.model.fit({"X":X_train_s, "X_ptyp": X_train_ptyp_s}, {"y": y_train_s}, batch_size=self.batch_size, nb_epoch=1,
+                h = self.model.fit({"X":X_train_s, "X_ptyp": X_ptyp_train_s}, {"y": y_train_s}, batch_size=self.batch_size, nb_epoch=1,
                            verbose=1, class_weight=self.class_weight,
                            validation_data=self.validation_data)
 
