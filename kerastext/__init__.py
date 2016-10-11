@@ -709,7 +709,7 @@ class RCTClassifier(ClassifierMixin):
 
         k_merge = merge([k_dp, k_ptyp_inp], concat_axis=1)
         k_out = Activation('sigmoid', name="y")(k_merge)
-        model = Model(input=[k_inp, k_ptyp_inp], output=[k_out])
+        model = Model(input={"X":k_inp, "X_ptyp": k_ptyp_inp}, output={"y": k_out})
         model.compile(loss='binary_crossentropy',
                       optimizer=self.optimizer,
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
