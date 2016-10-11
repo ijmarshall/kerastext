@@ -666,7 +666,7 @@ class RCTClassifier(ClassifierMixin):
         
             
     def generate_model(self):
-        k_inp = Input(shape=(self.max_len,), dtype='int32', name='X_inp')
+        k_inp = Input(shape=(self.max_len,), dtype='int32', name='X')
         k_ptyp_inp = Input(shape=(1,), dtype='int32', name='X_ptyp')
         k_emb = Embedding(input_dim=self.max_features+3, output_dim=self.embedding_dim,
                         input_length=self.max_len, weights=self.embedding_weights)(k_inp)
