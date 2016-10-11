@@ -505,7 +505,7 @@ def fmin_persist(fn, space, algo, max_evals, rstate=None,
     return trials
 
 
-    class RCTClassifier(ClassifierMixin):
+class RCTClassifier(ClassifierMixin):
     
     def __init__(self, max_features=10000, max_len=400, batch_size=50,
                  stopping_patience=5, dropout=0.5, activation='relu',
