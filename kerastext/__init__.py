@@ -561,7 +561,7 @@ class RCTClassifier(ClassifierMixin):
             for epoch_i in range(self.num_epochs):
                 X_train_s, X_ptyp_train_s, y_train_s = self.undersample(X_train, X_ptyp_train, y_train, self.undersample_ratio)
 
-                h = self.model.fit({"X":X_train_s, "X_ptyp": X_ptyp_train_s}, {"y": y_train_s}, batch_size=self.batch_size, nb_epoch=1,
+                h = self.model.fit([X_train_s, X_ptyp_train_s], y_train_s, batch_size=self.batch_size, nb_epoch=1,
                            verbose=1, class_weight=self.class_weight,
                            validation_data=self.validation_data)
 
@@ -591,7 +591,7 @@ class RCTClassifier(ClassifierMixin):
                 callbacks.append(EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode))
             if self.log_to_file:                
                 callbacks.append(CSVLogger('log.csv' if self.log_to_file==True else self.log_to_file))
-            self.history = self.model.fit({"X": X_train, "X_ptyp": X_ptyp_train}, {"y": y_train}, batch_size=self.batch_size, nb_epoch=self.num_epochs,
+            self.history = self.model.fit([X_train, X_ptyp_train], y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
                            verbose=1, class_weight=self.class_weight,
                            validation_data=self.validation_data, callbacks=callbacks).history
             
@@ -709,7 +709,7 @@ class RCTClassifier(ClassifierMixin):
 
         k_merge = merge([k_dp, k_ptyp_inp], concat_axis=1)
         k_out = Activation('sigmoid', name="y")(k_merge)
-        model = Model(input={"X":k_inp, "X_ptyp": k_ptyp_inp}, output={"y": k_out})
+        model = Model(input=[k_inp, k_ptyp_inp], output=k_out)
         model.compile(loss='binary_crossentropy',
                       optimizer=self.optimizer,
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
