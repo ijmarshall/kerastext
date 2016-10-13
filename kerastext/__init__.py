@@ -51,7 +51,7 @@ def f4_score(y, y_pred):
 
 def discriminance(y, y_pred):
     # mean of sens + spec
-    return (specificity(y, y_pred), sensitivity(y, y_pred))/2
+    return (specificity(y, y_pred), recall(y, y_pred))/2
     
 
 def target_tp_t(y, y_pred):
