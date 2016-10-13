@@ -394,7 +394,7 @@ class CNNTextClassifier(ClassifierMixin):
                       optimizer=self.optimizer,
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
 #                               yp_sum, yp_mean, yp_element])
-                      metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall])
+                      metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall, discriminance])
 
 
         return model
@@ -716,7 +716,7 @@ class RCTClassifier(ClassifierMixin):
                       optimizer=self.optimizer,
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
 #                               yp_sum, yp_mean, yp_element])
-                      metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall])
+                      metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall, discriminance])
 
 
         return model
