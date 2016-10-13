@@ -48,9 +48,11 @@ def f4_score(y, y_pred):
     precision = K.switch(num_pred>0, tp / num_pred, 0)
     precision_recall_sum = recall + (beta*precision)
     return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
+
+def discriminance(y, y_pred):
+    # mean of sens + spec
+    return (specificity(y, y_pred), sensitivity(y, y_pred))/2
     
-
-
 
 def target_tp_t(y, y_pred):
     target_recall = 0.97
