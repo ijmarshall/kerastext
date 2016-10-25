@@ -248,6 +248,8 @@ class CNNTextClassifier(ClassifierMixin):
                 if first_loop:
                     first_loop=False
                 else:
+                    print(h.history[self.stopping_target])
+                    print(self.history[self.stopping_target])
                     reduce_patience = (h.history[self.stopping_target] >= self.history[self.stopping_target]) if self.stopping_mode=='min' else h.history[self.stopping_target] <= self.history[self.stopping_target]
                     if reduce_patience:
                         patience_counter -= 1
