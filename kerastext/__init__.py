@@ -24,6 +24,7 @@ import pickle
 from hyperopt import fmin, tpe, hp, FMinIter, base
 import os
 import numpy as np
+from collections import defaultdict
 
 
 def f1_score(y, y_pred):
@@ -189,7 +190,7 @@ class CNNTextClassifier(ClassifierMixin):
                  num_hidden_layers=0, dim_hidden_layers=200,
                  stopping_target='loss', stopping_less_is_good=True,
                  embedding_dim=200, embedding_weights=None, optimizer='adam',
-                 undersample_ratio=None, oversample_ratio=None, class_weight=None,
+                 undersample_ratio=None, oversample_ratio=None, epoch_resampling=False, class_weight=None,
                  validation_split=0, l2=3, log_to_file=True):
         # default hyperparams taken from Kim paper
         self.max_features = max_features
@@ -211,12 +212,15 @@ class CNNTextClassifier(ClassifierMixin):
         self.model = self.generate_model()
         self.undersample_ratio = undersample_ratio # for class imbalance with few positive examples
         self.oversample_ratio = oversample_ratio
+        self.epoch_resampling = epoch_resampling
         self.class_weight = class_weight
         self.validation_split = validation_split
         self.log_to_file = log_to_file
+
     
     def fit(self, X_train, y_train):
         print("Processing data ({} samples)".format(len(y_train)))
+
         X_train = self.low_pass_filter(X_train)
         
         if self.validation_split:
@@ -225,43 +229,42 @@ class CNNTextClassifier(ClassifierMixin):
         else:
             self.validation_data = None
 
+    
+
         
+        self.history = defaultdict(list)
+        patience_counter = self.stopping_patience
+        first_loop = True
 
+        for epoch_i in range(self.num_epochs):
 
-
-        if self.undersample_ratio:
-
-            from collections import defaultdict
-
-            self.history = defaultdict(list)
-
-            patience_counter = self.stopping_patience
-            first_loop = True
-
-            for epoch_i in range(self.num_epochs):
-                X_train_s, y_train_s = self.undersample(X_train, y_train, self.undersample_ratio)
-
-                h = self.model.fit(X_train_s, y_train_s, batch_size=self.batch_size, nb_epoch=1,
-                           verbose=1, class_weight=self.class_weight,
-                           validation_data=self.validation_data)
-
-                if first_loop:
-                    first_loop=False
+            if self.epoch_resampling or first_loop:
+                if self.undersample_ratio:
+                    X_train_s, y_train_s = self.undersample(X_train, y_train, self.undersample_ratio)
+                elif self.oversample_ratio:
+                    X_train_s, y_train_s = self.oversample(X_train, y_train, self.oversample_ratio)
                 else:
-                    print(h.history[self.stopping_target])
-                    print(self.history[self.stopping_target])
-                    reduce_patience = (h.history[self.stopping_target] >= self.history[self.stopping_target]) if self.stopping_mode=='min' else h.history[self.stopping_target] <= self.history[self.stopping_target]
-                    if reduce_patience:
-                        patience_counter -= 1
-                    
-                for k, v in h.history.items():
-                    self.history[k].extend(v)
+                    X_train_s, y_train_s = X_train, y_train
 
-                print('{} patiences left...'.format(patience_counter))
+            h = self.model.fit(X_train_s, y_train_s, batch_size=self.batch_size, nb_epoch=1, verbose=1, class_weight=self.class_weight, validation_data=self.validation_data)
 
-                if patience_counter == 0:
-                    print("Out of patience!")
-                    break
+            if first_loop:
+                first_loop=False
+            else:
+                print(h.history[self.stopping_target])
+                print(self.history[self.stopping_target])
+                reduce_patience = (h.history[self.stopping_target] >= self.history[self.stopping_target]) if self.stopping_mode=='min' else h.history[self.stopping_target] <= self.history[self.stopping_target]
+                if reduce_patience:
+                    patience_counter -= 1
+                
+            for k, v in h.history.items():
+                self.history[k].extend(v)
+
+            print('{} patiences left...'.format(patience_counter))
+
+            if patience_counter == 0:
+                print("Out of patience!")
+                break
 
         else:            
             if self.oversample_ratio:
@@ -277,26 +280,7 @@ class CNNTextClassifier(ClassifierMixin):
                            verbose=1, class_weight=self.class_weight,
                            validation_data=self.validation_data, callbacks=callbacks).history
             
-        # debug - retry metrics manually
-        
-#         print("Predicting...")
-#         self.preds = self.predict(self.validation_data[0]['input'])
-#         pred_tensor = theano.shared(self.preds.astype(np.float32))
-#         true_tensor = theano.shared(self.validation_data[1]['output'].astype(np.float32))
-        
-#         print("Scores: precision {} recall {} precision @ recall {}".format(K.eval(precision(true_tensor, pred_tensor)), K.eval(recall(true_tensor, pred_tensor)), K.eval(precision_at_recall(true_tensor, pred_tensor))))
-        
-        
-        
-#     def fit_resample(self, X_train, y_train):
-#         X_train = self.low_pass_filter(X_train)
-#         X_t, X_val, y_t, y_val = self.get_val_set(X_train, y_train) # skim a bit off for monitoring
-#         for epoch in range(self.num_epochs):
-#             X_t_s, y_t_s = self.subsample(X_t, y_t, self.sampling_ratio)
-#             self.model.fit({"input":X_t_s}, {"output":y_t_s}, batch_size=self.batch_size, nb_epoch=1,
-#                            verbose=1, class_weight=self.class_weight,
-#                            validation_data=({"input":X_val}, {"output":y_val}))
-            
+
     def predict(self, X_test):
         X_test = self.low_pass_filter(X_test)
         return self.model.predict({"input":X_test})
