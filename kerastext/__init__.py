@@ -239,6 +239,7 @@ class CNNTextClassifier(ClassifierMixin):
         for epoch_i in range(self.num_epochs):
 
             if self.epoch_resampling or first_loop:
+                print("sampling...")
                 if self.undersample_ratio:
                     X_train_s, y_train_s = self.undersample(X_train, y_train, self.undersample_ratio)
                 elif self.oversample_ratio:
