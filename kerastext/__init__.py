@@ -220,9 +220,7 @@ class CNNTextClassifier(ClassifierMixin):
     
     def fit(self, X_train, y_train, set_seed=None):
 
-        if set_seed:
-            print("Setting numpy random seed")
-            np.random.seed(seed=set_seed)
+
 
         print("Processing data ({} samples)".format(len(y_train)))
 
@@ -243,6 +241,10 @@ class CNNTextClassifier(ClassifierMixin):
 
         for self.epoch_ind in range(self.num_epochs):
             print("Epoch {} of {} (max... may stop early)".format(self.epoch_ind+1, self.num_epochs))
+            if first_loop and set_seed:
+                print("Setting numpy random seed")
+                np.random.seed(seed=set_seed)
+
             if self.epoch_resampling or first_loop:
                 print("sampling...")
                 if self.undersample_ratio:
