@@ -237,7 +237,7 @@ class CNNTextClassifier(ClassifierMixin):
         first_loop = True
 
         for self.epoch_ind in range(self.num_epochs):
-            print("Epoch {} of {} (max... may stop early)".format(self.epoch_ind, self.num_epochs))
+            print("Epoch {} of {} (max... may stop early)".format(self.epoch_ind+1, self.num_epochs))
             if self.epoch_resampling or first_loop:
                 print("sampling...")
                 if self.undersample_ratio:
