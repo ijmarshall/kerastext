@@ -267,19 +267,6 @@ class CNNTextClassifier(ClassifierMixin):
                 print("Out of patience!")
                 break
 
-        else:            
-            if self.oversample_ratio:
-                X_train, y_train = self.oversample(X_train, y_train, self.oversample_ratio)
-                print("Sampled with ratio of {}, increased to {} samples.".format(self.oversample_ratio, len(y_train)))        
-
-            callbacks = []
-            if self.stopping_patience:
-                callbacks.append(EarlyStopping(monitor=self.stopping_target, patience=self.stopping_patience, verbose=0, mode=self.stopping_mode))
-            if self.log_to_file:                
-                callbacks.append(CSVLogger('log.csv' if self.log_to_file==True else self.log_to_file))
-            self.history = self.model.fit(X_train, y_train, batch_size=self.batch_size, nb_epoch=self.num_epochs,
-                           verbose=1, class_weight=self.class_weight,
-                           validation_data=self.validation_data, callbacks=callbacks).history
             
 
     def predict(self, X_test):
@@ -547,7 +534,7 @@ class RCTClassifier(ClassifierMixin):
             patience_counter = self.stopping_patience
             first_loop = True
 
-            for epoch_i in range(self.num_epochs):
+            for self.epoch_i in range(self.num_epochs):
                 X_train_s, X_ptyp_train_s, y_train_s = self.undersample(X_train, X_ptyp_train, y_train, self.undersample_ratio)
 
                 h = self.model.fit([X_train_s, X_ptyp_train_s], y_train_s, batch_size=self.batch_size, nb_epoch=1,
