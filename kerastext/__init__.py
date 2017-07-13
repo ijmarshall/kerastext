@@ -33,26 +33,26 @@ def f1_score(y, y_pred):
     num_true = K.sum(y)
     num_pred = K.sum(y_pred_binary)
     tp = K.sum(y * y_pred_binary)
-    recall = K.switch(num_true>0, tp / num_true, 0)
-    precision = K.switch(num_pred>0, tp / num_pred, 0)
+    recall = K.switch(num_true>0., tp / num_true, 0.)
+    precision = K.switch(num_pred>0., tp / num_pred, 0.)
     precision_recall_sum = recall + (beta*precision)
-    return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
+    return K.switch(precision_recall_sum>0., (beta+1.)*((precision*recall)/(precision_recall_sum)), 0.)
 
 
-def f4_score(y, y_pred):
-    beta = 4
-    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
-    num_true = K.sum(y)
-    num_pred = K.sum(y_pred_binary)
-    tp = K.sum(y * y_pred_binary)
-    recall = K.switch(num_true>0, tp / num_true, 0)
-    precision = K.switch(num_pred>0, tp / num_pred, 0)
-    precision_recall_sum = recall + (beta*precision)
-    return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
+# def f4_score(y, y_pred):
+#     beta = 4
+#     y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
+#     num_true = K.sum(y)
+#     num_pred = K.sum(y_pred_binary)
+#     tp = K.sum(y * y_pred_binary)
+#     recall = K.switch(num_true>0, tp / num_true, 0)
+#     precision = K.switch(num_pred>0, tp / num_pred, 0)
+#     precision_recall_sum = recall + (beta*precision)
+#     return K.switch(precision_recall_sum>0, (beta+1)*((precision*recall)/(precision_recall_sum)), 0)
 
 def discriminance(y, y_pred):
     # mean of sens + spec
-    return (specificity(y, y_pred) + recall(y, y_pred))/2
+    return (specificity(y, y_pred) + recall(y, y_pred))/2.
     
 
 def target_tp_t(y, y_pred):
