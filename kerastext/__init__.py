@@ -145,11 +145,11 @@ def target_tp_t(y, y_pred):
 # def precision(y, y_pred):
 #     return precision_at_cutoff(y, y_pred, np.float32(0.5))
 
-def specificity(y, y_pred):
-    return specificity_at_cutoff(y, y_pred, np.float32(0.5))
+# def specificity(y, y_pred):
+#     return specificity_at_cutoff(y, y_pred, np.float32(0.5))
 
-def recall(y, y_pred):
-    return recall_at_cutoff(y, y_pred, np.float(0.5))
+# def recall(y, y_pred):
+#     return recall_at_cutoff(y, y_pred, np.float(0.5))
 
 class KerasVectorizer(VectorizerMixin):    
     def __init__(self, input='content', encoding='utf-8',
