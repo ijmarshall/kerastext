@@ -38,21 +38,21 @@ def f1_score(y, y_pred):
     precision_recall_sum = recall + (beta*precision)
     return K.switch(precision_recall_sum>0., (beta+1.)*((precision*recall)/(precision_recall_sum)), 0.)
 
-def recall(y, y_pred):
-    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
-    num_true = K.sum(y)
-    num_pred = K.sum(y_pred_binary)
-    tp = K.sum(y * y_pred_binary)
-    recall = K.switch(num_true>0., tp / num_true, 0.)
-    return recall
+# def recall(y, y_pred):
+#     y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
+#     num_true = K.sum(y)
+#     num_pred = K.sum(y_pred_binary)
+#     tp = K.sum(y * y_pred_binary)
+#     recall = K.switch(num_true>0., tp / num_true, 0.)
+#     return recall
 
-def specificity(y, y_pred):
-    # y_pred_binary = K.switch(y_pred <= 0.5, 1., 0.) # > 0.5 goes to 1.0
-    y_pred_binary = 1. - K.round(y_pred) # > 0.5 goes to 1.0
-    num_true = K.sum(1. - y)
-    num_pred = K.sum(y_pred_binary)
-    tp = K.sum(y * y_pred_binary)
-    recall = K.switch(num_true>0., tp / num_true, 0.)
+# def specificity(y, y_pred):
+#     # y_pred_binary = K.switch(y_pred <= 0.5, 1., 0.) # > 0.5 goes to 1.0
+#     y_pred_binary = 1. - K.round(y_pred) # > 0.5 goes to 1.0
+#     num_true = K.sum(1. - y)
+#     num_pred = K.sum(y_pred_binary)
+#     tp = K.sum(y * y_pred_binary)
+#     recall = K.switch(num_true>0., tp / num_true, 0.)
 
 
 
@@ -391,7 +391,7 @@ class CNNTextClassifier(ClassifierMixin):
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
 #                               yp_sum, yp_mean, yp_element])
 #                       metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall, discriminance])
-                      metrics=['accuracy', f1_score, recall, specificity, discriminance])
+                      metrics=['accuracy', f1_score])
 
 
         return model
