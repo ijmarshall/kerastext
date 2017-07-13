@@ -13,7 +13,7 @@ from keras.layers import Embedding
 from keras.layers import Convolution1D, MaxPooling1D
 from keras import backend as K
 from keras.models import Model
-from keras.regularizers import l2, activity_l2
+from keras.regularizers import l2
 from keras.callbacks import EarlyStopping, CSVLogger
 import keras.backend as K
 from theano.ifelse import ifelse
