@@ -72,10 +72,10 @@ def discriminance(y, y_pred):
     return (specificity(y, y_pred) + recall(y, y_pred))/2.
     
 
-def target_tp_t(y, y_pred):
-    target_recall = 0.97
-    num_true = y.nonzero()[0].shape[0]
-    return num_true
+# def target_tp_t(y, y_pred):
+#     target_recall = 0.97
+#     num_true = y.nonzero()[0].shape[0]
+#     return num_true
 
     
 # def precision_at_recall(y, y_pred):
