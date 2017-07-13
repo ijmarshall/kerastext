@@ -38,6 +38,23 @@ def f1_score(y, y_pred):
     precision_recall_sum = recall + (beta*precision)
     return K.switch(precision_recall_sum>0., (beta+1.)*((precision*recall)/(precision_recall_sum)), 0.)
 
+def recall(y, y_pred):
+    y_pred_binary = K.round(y_pred) # > 0.5 goes to 1.0
+    num_true = K.sum(y)
+    num_pred = K.sum(y_pred_binary)
+    tp = K.sum(y * y_pred_binary)
+    recall = K.switch(num_true>0., tp / num_true, 0.)
+    return recall
+
+def specificity(y, y_pred):
+    # y_pred_binary = K.switch(y_pred <= 0.5, 1., 0.) # > 0.5 goes to 1.0
+    y_pred_binary = 1. - K.round(y_pred) # > 0.5 goes to 1.0
+    num_true = K.sum(1. - y)
+    num_pred = K.sum(y_pred_binary)
+    tp = K.sum(y * y_pred_binary)
+    recall = K.switch(num_true>0., tp / num_true, 0.)
+
+
 
 # def f4_score(y, y_pred):
 #     beta = 4
