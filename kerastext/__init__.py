@@ -17,7 +17,7 @@ from keras.regularizers import l2, activity_l2
 from keras.callbacks import EarlyStopping, CSVLogger
 import keras.backend as K
 from theano.ifelse import ifelse
-import theano.tensor as T
+# import theano.tensor as T
 
 import pickle
 
@@ -61,72 +61,72 @@ def target_tp_t(y, y_pred):
     return num_true
 
     
-def precision_at_recall(y, y_pred):
-    target_recall = 0.97
-    num_true = y.nonzero()[0].shape[0]
-    target_tp_t = T.iround(target_recall * num_true)    
-    pos_inds = y.nonzero()[0]
-    pred_pos = y_pred[pos_inds]
-    p_argsort = pred_pos.argsort(axis=0)
-    pred_cutoff = ifelse(num_true > 0, y_pred[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
-    return precision_at_cutoff(y, y_pred, pred_cutoff)
+# def precision_at_recall(y, y_pred):
+#     target_recall = 0.97
+#     num_true = y.nonzero()[0].shape[0]
+#     target_tp_t = T.iround(target_recall * num_true)    
+#     pos_inds = y.nonzero()[0]
+#     pred_pos = y_pred[pos_inds]
+#     p_argsort = pred_pos.argsort(axis=0)
+#     pred_cutoff = ifelse(num_true > 0, y_pred[pos_inds[p_argsort[-target_tp_t]]][0][0], np.float32(0))
+#     return precision_at_cutoff(y, y_pred, pred_cutoff)
         
-def precision_at_recall(y, y_pred):
-    target_recall = 0.97
-    # extend both by one value
-    y_e = T.concatenate([np.array([1]), y.T[0]])
-    y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
+# def precision_at_recall(y, y_pred):
+#     target_recall = 0.97
+#     # extend both by one value
+#     y_e = T.concatenate([np.array([1]), y.T[0]])
+#     y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
     
-    pos_inds = y_e.nonzero()[0]
-    num_true = pos_inds.shape[0]
-    target_tp_t = ifelse(num_true > 1, T.iround(target_recall * (num_true-1)) + 1, np.int64(0))
+#     pos_inds = y_e.nonzero()[0]
+#     num_true = pos_inds.shape[0]
+#     target_tp_t = ifelse(num_true > 1, T.iround(target_recall * (num_true-1)) + 1, np.int64(0))
     
-    pred_pos = y_pred_e[pos_inds]
-    p_argsort = pred_pos.argsort(axis=0)
+#     pred_pos = y_pred_e[pos_inds]
+#     p_argsort = pred_pos.argsort(axis=0)
     
-    pred_cutoff = y_pred_e[pos_inds[p_argsort[-target_tp_t]]]
+#     pred_cutoff = y_pred_e[pos_inds[p_argsort[-target_tp_t]]]
     
-    return specificity_at_cutoff(y, y_pred, pred_cutoff)    
+#     return specificity_at_cutoff(y, y_pred, pred_cutoff)    
 
-def specificity_at_recall(y, y_pred):
-    target_recall = 0.97
-    # extend both by one value
-    y_e = T.concatenate([np.array([1]), y.T[0]])
-    y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
+# def specificity_at_recall(y, y_pred):
+#     target_recall = 0.97
+#     # extend both by one value
+#     y_e = T.concatenate([np.array([1]), y.T[0]])
+#     y_pred_e = T.concatenate([np.array([0.]), y_pred.T[0]])
     
-    pos_inds = y_e.nonzero()[0]
-    num_true = pos_inds.shape[0]
-    target_tp_t = ifelse(num_true > 1, T.iround(target_recall * (num_true-1)) + 1, np.int64(0))
+#     pos_inds = y_e.nonzero()[0]
+#     num_true = pos_inds.shape[0]
+#     target_tp_t = ifelse(num_true > 1, T.iround(target_recall * (num_true-1)) + 1, np.int64(0))
     
-    pred_pos = y_pred_e[pos_inds]
-    p_argsort = pred_pos.argsort(axis=0)
+#     pred_pos = y_pred_e[pos_inds]
+#     p_argsort = pred_pos.argsort(axis=0)
     
-    pred_cutoff = y_pred_e[pos_inds[p_argsort[-target_tp_t]]]
+#     pred_cutoff = y_pred_e[pos_inds[p_argsort[-target_tp_t]]]
     
-    return specificity_at_cutoff(y, y_pred, pred_cutoff)    
+#     return specificity_at_cutoff(y, y_pred, pred_cutoff)    
     
 
-def specificity_at_cutoff(y, y_pred, pred_cutoff):
-    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
-    tn = T.eq(y + y_pred_binary, 0).nonzero()[0].shape[0]
-    num_neg = T.eq(y, 0).nonzero()[0].shape[0]
-    return T.switch(num_neg>0, tn/num_neg, np.float32(0))
+# def specificity_at_cutoff(y, y_pred, pred_cutoff):
+#     y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
+#     tn = T.eq(y + y_pred_binary, 0).nonzero()[0].shape[0]
+#     num_neg = T.eq(y, 0).nonzero()[0].shape[0]
+#     return T.switch(num_neg>0, tn/num_neg, np.float32(0))
 
-def precision_at_cutoff(y, y_pred, pred_cutoff):
-    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
-    num_pred = y_pred_binary.nonzero()[0].shape[0]
-    tp_cutoff = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
-    precision = T.switch(num_pred>0, tp_cutoff / num_pred, 0)
-    return precision
+# def precision_at_cutoff(y, y_pred, pred_cutoff):
+#     y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
+#     num_pred = y_pred_binary.nonzero()[0].shape[0]
+#     tp_cutoff = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
+#     precision = T.switch(num_pred>0, tp_cutoff / num_pred, 0)
+#     return precision
 
-def recall_at_cutoff(y, y_pred, pred_cutoff):
-    y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
-    tp = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
-    num_true = y.nonzero()[0].shape[0]
-    return T.switch(num_true>0, tp/num_true, np.float32(0))
+# def recall_at_cutoff(y, y_pred, pred_cutoff):
+#     y_pred_binary = T.switch(y_pred >= pred_cutoff, np.int64(1), np.int64(0))
+#     tp = T.eq(y + y_pred_binary, 2).nonzero()[0].shape[0]
+#     num_true = y.nonzero()[0].shape[0]
+#     return T.switch(num_true>0, tp/num_true, np.float32(0))
 
-def precision(y, y_pred):
-    return precision_at_cutoff(y, y_pred, np.float32(0.5))
+# def precision(y, y_pred):
+#     return precision_at_cutoff(y, y_pred, np.float32(0.5))
 
 def specificity(y, y_pred):
     return specificity_at_cutoff(y, y_pred, np.float32(0.5))
@@ -373,7 +373,8 @@ class CNNTextClassifier(ClassifierMixin):
                       optimizer=self.optimizer,
 #                       metrics=['accuracy', num_true, target_tp_t, f1_score, precision, recall, specificity, spec_at_sens2, y_sum, y_ones, y_zeros, y_element,
 #                               yp_sum, yp_mean, yp_element])
-                      metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall, discriminance])
+#                       metrics=['accuracy', f1_score, precision, recall, specificity, specificity_at_recall, discriminance])
+                      metrics=['accuracy', f1_score, recall, specificity, discriminance])
 
 
         return model
