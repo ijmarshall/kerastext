@@ -299,7 +299,7 @@ class CNNTextClassifier(ClassifierMixin):
         # 1. set maximum document length
         X=X[:,-self.max_len:]
         # 2. remove words less frequent than self.max_features
-        X[X>self.max_features] = 2
+        X[X>self.max_features+3] = 2
         return X
     
     def get_embedding_weights(self, emb):
