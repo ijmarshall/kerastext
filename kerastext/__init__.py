@@ -315,7 +315,7 @@ class CNNTextClassifier(ClassifierMixin):
         y_bool = y_train.astype('bool')
         pos_indices = np.where(y_bool==True)[0]
         neg_indices = np.where(y_bool==False)[0]
-        sampled_indices = (np.append(pos_indices, np.random.choice(neg_indices, int(len(pos_indices)*ratio), replace=False)))
+        sampled_indices = (np.append(pos_indices, np.random.choice(neg_indices, int(len(pos_indices)*ratio), replace=True)))
         print("{} sampled indices from {} total, which comprise {} positive, {} negative examples".format(len(sampled_indices), len(y_bool), len(pos_indices), int(len(pos_indices)*ratio)))
         return X_train[sampled_indices], y_train[sampled_indices]
     
